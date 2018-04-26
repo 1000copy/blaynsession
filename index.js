@@ -1,44 +1,71 @@
 var http = require('http')
-
+var sessionkey = "sessionkey3"
 http.createServer(function(req,res){
-	session(req,res)
-	req.session.base = (req.session.base+1) || 1
-	res.end('hi'+req.session.base)
+	if (req.url =="/"){
+		session(req,res)
+		req.session.count = (req.session.count+1) || 1
+		res.end('hi'+req.session.count)
+	}else
+		res.end('')	
 }).listen(3000)
 console.log('listen on 3000')
 function session(req,res){
 	if (req.session)
 		return
-	if (hasCookie(req)){
-		var sid = getCookie()
-		req.session = getSession(sid)
-	}
-	else{
-		req.session =  {}
-		var id = saveSession(req.session)
+	var answer ,id
+	if(isSessionOk(req)){
+		id = getCookie(req)
+		answer = getSessionById(id)
+	}else{
+		answer=  {}
+		id = createSession(answer)
 		setCookie(res,id)
 	}
+	req.session = answer
+	res.on('finish', function() {
+		saveSession(id,req.session)
+	});
 }
 function hasCookie(req){
-  var h = JSON.stringify(req.headers)
-  var c = h['cookie']
-  return c 
+  return (getCookie(req)!='') 
 }
 function getCookie(req){
-  var h = JSON.stringify(req.headers)
-  var c = h['cookie']
-  	return c
+  try{
+	  var c = req.headers['cookie']
+	  var arr = c.split(';')
+	  for (var i = 0; i < arr.length; i++) {
+	  	var kv = arr[i]
+	  	var a = kv.split('=')
+	  	if (a[0].trim() == sessionkey)
+	  		return a[1]
+	  }
+  }catch(error){
+  	return ''
+  }
+  return ''
 }
 function setCookie(res,id){
-  res.setHeader("set-cookie",id)
+  res.setHeader("set-cookie",sessionkey +"="+id)
 }
 var sessions = {}
 var sid = 0  
-function getSession(sid){
+function getSessionById(sid){
 	return sessions[sid]
 }
-function saveSession(session){
+function getSessionByReq(req){
+	var sid = getCookie(req)
+	return sessions[sid]
+}
+function createSession(session){
 	sessions[sid++,session]
 	return sid
 }
-
+function saveSession(sid,session){
+	sessions[sid] = session
+}
+// function isSessionNotOk(req){
+// 	return !hasCookie(req) || getSessionByReq(req) == undefined
+// }
+function isSessionOk(req){
+	return hasCookie(req) && getSessionByReq(req) !== undefined
+}
